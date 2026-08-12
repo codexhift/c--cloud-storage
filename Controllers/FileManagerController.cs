@@ -88,6 +88,262 @@ public class FileManagerController : Controller
     }
 
     // ──────────────────────────────────────────────
+    // SEARCH — Global Search, Filtering, and Sorting
+    // ──────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> Search(
+        string? q,
+        string? type,
+        string? fileType,
+        string? sort,
+        string? direction,
+        string? date)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        // Validation & Normalization
+        q = q?.Trim();
+        if (q != null && q.Length > 100)
+        {
+            q = q.Substring(0, 100);
+        }
+
+        type = (type ?? "All").Trim();
+        if (type != "Files" && type != "Folders") type = "All";
+
+        fileType = (fileType ?? "All").Trim();
+
+        sort = (sort ?? "name").ToLowerInvariant().Trim();
+        var allowedSorts = new[] { "name", "created", "updated", "size" };
+        if (!allowedSorts.Contains(sort)) sort = "name";
+
+        direction = (direction ?? "asc").ToLowerInvariant().Trim();
+        if (direction != "desc") direction = "asc";
+
+        date = (date ?? "All").Trim();
+        var allowedDates = new[] { "All", "Today", "7d", "30d" };
+        if (!allowedDates.Contains(date)) date = "All";
+
+        // Date Boundary Calculation
+        DateTime? dateCutoff = null;
+        var now = DateTime.UtcNow;
+        if (date == "Today")
+        {
+            dateCutoff = now.Date;
+        }
+        else if (date == "7d")
+        {
+            dateCutoff = now.AddDays(-7);
+        }
+        else if (date == "30d")
+        {
+            dateCutoff = now.AddDays(-30);
+        }
+
+        var results = new List<SearchResultItem>();
+
+        // 1. QUERY FOLDERS
+        if (type == "All" || type == "Folders")
+        {
+            var folderQuery = _db.Folders
+                .Where(f => f.OwnerId == userId && !f.IsDeleted && f.ParentFolderId != null); // exclude root from search
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                folderQuery = folderQuery.Where(f => EF.Functions.ILike(f.Name, $"%{q}%"));
+            }
+
+            if (dateCutoff.HasValue)
+            {
+                folderQuery = folderQuery.Where(f => f.CreatedAt >= dateCutoff.Value);
+            }
+
+            // Apply Folder Sorting
+            if (sort == "created")
+            {
+                folderQuery = direction == "desc"
+                    ? folderQuery.OrderByDescending(f => f.CreatedAt)
+                    : folderQuery.OrderBy(f => f.CreatedAt);
+            }
+            else
+            {
+                // Default & Name sort for folders (Size sort falls back to Name)
+                folderQuery = direction == "desc"
+                    ? folderQuery.OrderByDescending(f => f.Name)
+                    : folderQuery.OrderBy(f => f.Name);
+            }
+
+            var folderResults = await folderQuery
+                .Take(100)
+                .Select(f => new SearchResultItem
+                {
+                    Id = f.Id,
+                    Name = f.Name,
+                    ItemType = "Folder",
+                    ParentFolderId = f.ParentFolderId,
+                    Size = 0,
+                    ContentType = "Folder",
+                    CreatedAt = f.CreatedAt,
+                    UpdatedAt = f.CreatedAt
+                })
+                .ToListAsync();
+
+            results.AddRange(folderResults);
+        }
+
+        // 2. QUERY FILES
+        if (type == "All" || type == "Files")
+        {
+            var fileQuery = _db.FileItems
+                .Where(f => f.OwnerId == userId && !f.IsDeleted);
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                fileQuery = fileQuery.Where(f => EF.Functions.ILike(f.Name, $"%{q}%"));
+            }
+
+            if (dateCutoff.HasValue)
+            {
+                fileQuery = fileQuery.Where(f => f.UpdatedAt >= dateCutoff.Value);
+            }
+
+            // File Type Filter
+            if (fileType == "PDF")
+            {
+                fileQuery = fileQuery.Where(f => f.ContentType == "application/pdf" || f.Name.ToLower().EndsWith(".pdf"));
+            }
+            else if (fileType == "Images")
+            {
+                fileQuery = fileQuery.Where(f =>
+                    f.ContentType.StartsWith("image/") ||
+                    f.Name.ToLower().EndsWith(".png") ||
+                    f.Name.ToLower().EndsWith(".jpg") ||
+                    f.Name.ToLower().EndsWith(".jpeg") ||
+                    f.Name.ToLower().EndsWith(".gif") ||
+                    f.Name.ToLower().EndsWith(".webp"));
+            }
+            else if (fileType == "Documents")
+            {
+                fileQuery = fileQuery.Where(f =>
+                    f.ContentType.Contains("word") ||
+                    f.ContentType.Contains("excel") ||
+                    f.ContentType.Contains("presentation") ||
+                    f.ContentType.Contains("text") ||
+                    f.Name.ToLower().EndsWith(".doc") ||
+                    f.Name.ToLower().EndsWith(".docx") ||
+                    f.Name.ToLower().EndsWith(".xls") ||
+                    f.Name.ToLower().EndsWith(".xlsx") ||
+                    f.Name.ToLower().EndsWith(".ppt") ||
+                    f.Name.ToLower().EndsWith(".pptx") ||
+                    f.Name.ToLower().EndsWith(".txt"));
+            }
+            else if (fileType == "Archives")
+            {
+                fileQuery = fileQuery.Where(f =>
+                    f.ContentType.Contains("zip") ||
+                    f.ContentType.Contains("rar") ||
+                    f.ContentType.Contains("compressed") ||
+                    f.ContentType.Contains("tar") ||
+                    f.Name.ToLower().EndsWith(".zip") ||
+                    f.Name.ToLower().EndsWith(".rar") ||
+                    f.Name.ToLower().EndsWith(".7z") ||
+                    f.Name.ToLower().EndsWith(".tar") ||
+                    f.Name.ToLower().EndsWith(".gz"));
+            }
+
+            // Apply File Sorting
+            if (sort == "created")
+            {
+                fileQuery = direction == "desc"
+                    ? fileQuery.OrderByDescending(f => f.CreatedAt)
+                    : fileQuery.OrderBy(f => f.CreatedAt);
+            }
+            else if (sort == "updated")
+            {
+                fileQuery = direction == "desc"
+                    ? fileQuery.OrderByDescending(f => f.UpdatedAt)
+                    : fileQuery.OrderBy(f => f.UpdatedAt);
+            }
+            else if (sort == "size")
+            {
+                fileQuery = direction == "desc"
+                    ? fileQuery.OrderByDescending(f => f.Size)
+                    : fileQuery.OrderBy(f => f.Size);
+            }
+            else
+            {
+                fileQuery = direction == "desc"
+                    ? fileQuery.OrderByDescending(f => f.Name)
+                    : fileQuery.OrderBy(f => f.Name);
+            }
+
+            var fileResults = await fileQuery
+                .Take(100)
+                .Select(f => new SearchResultItem
+                {
+                    Id = f.Id,
+                    Name = f.Name,
+                    ItemType = "File",
+                    ParentFolderId = f.FolderId,
+                    Size = f.Size,
+                    ContentType = f.ContentType,
+                    CreatedAt = f.CreatedAt,
+                    UpdatedAt = f.UpdatedAt
+                })
+                .ToListAsync();
+
+            results.AddRange(fileResults);
+        }
+
+        // Final Memory Sort (Keep Folders first, then Files when type is All)
+        if (type == "All")
+        {
+            var foldersPart = results.Where(r => r.ItemType == "Folder");
+            var filesPart = results.Where(r => r.ItemType == "File");
+
+            if (sort == "name")
+            {
+                foldersPart = direction == "desc" ? foldersPart.OrderByDescending(f => f.Name) : foldersPart.OrderBy(f => f.Name);
+                filesPart = direction == "desc" ? filesPart.OrderByDescending(f => f.Name) : filesPart.OrderBy(f => f.Name);
+            }
+            else if (sort == "created")
+            {
+                foldersPart = direction == "desc" ? foldersPart.OrderByDescending(f => f.CreatedAt) : foldersPart.OrderBy(f => f.CreatedAt);
+                filesPart = direction == "desc" ? filesPart.OrderByDescending(f => f.CreatedAt) : filesPart.OrderBy(f => f.CreatedAt);
+            }
+            else if (sort == "updated")
+            {
+                filesPart = direction == "desc" ? filesPart.OrderByDescending(f => f.UpdatedAt) : filesPart.OrderBy(f => f.UpdatedAt);
+            }
+            else if (sort == "size")
+            {
+                filesPart = direction == "desc" ? filesPart.OrderByDescending(f => f.Size) : filesPart.OrderBy(f => f.Size);
+            }
+
+            results = foldersPart.Concat(filesPart).Take(100).ToList();
+        }
+        else
+        {
+            results = results.Take(100).ToList();
+        }
+
+        var vm = new SearchViewModel
+        {
+            Q = q,
+            Type = type,
+            FileType = fileType,
+            Sort = sort,
+            Direction = direction,
+            Date = date,
+            Results = results,
+            TotalCount = results.Count
+        };
+
+        return View(vm);
+    }
+
+    // ──────────────────────────────────────────────
     // CREATE FOLDER
     // ──────────────────────────────────────────────
 
