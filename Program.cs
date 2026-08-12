@@ -32,6 +32,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<CloudStorage.Services.IStorageService, CloudStorage.Services.LocalStorageService>();
 
 var app = builder.Build();
 

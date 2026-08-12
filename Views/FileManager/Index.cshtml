@@ -1,0 +1,247 @@
+@model CloudStorage.Models.FileManager.FileManagerViewModel
+@using CloudStorage.Models
+
+@{
+    ViewData["Title"] = "File Manager — " + Model.CurrentFolder.Name;
+}
+
+@functions {
+    static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}
+
+<div class="container-fluid mt-3">
+
+    @* ── ALERTS ── *@
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @Model.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @* ── BREADCRUMB ── *@
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            @for (int i = 0; i < Model.Breadcrumbs.Count; i++)
+            {
+                var crumb = Model.Breadcrumbs[i];
+                if (i == Model.Breadcrumbs.Count - 1)
+                {
+                    <li class="breadcrumb-item active">@crumb.Name</li>
+                }
+                else
+                {
+                    <li class="breadcrumb-item">
+                        <a asp-action="Index" asp-route-folderId="@crumb.Id">@crumb.Name</a>
+                    </li>
+                }
+            }
+        </ol>
+    </nav>
+
+    <div class="row g-3 mb-3">
+
+        @* ── CREATE FOLDER ── *@
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><strong>Buat Folder Baru</strong></div>
+                <div class="card-body">
+                    <form asp-action="CreateFolder" method="post" class="d-flex gap-2">
+                        <input type="hidden" name="parentFolderId" value="@Model.CurrentFolder.Id" />
+                        <input type="text" name="name" class="form-control" placeholder="Nama folder..." required />
+                        <button type="submit" class="btn btn-primary text-nowrap">Buat</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        @* ── UPLOAD FILE ── *@
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><strong>Upload File</strong></div>
+                <div class="card-body">
+                    <form asp-action="UploadFile" method="post" enctype="multipart/form-data" class="d-flex gap-2">
+                        <input type="hidden" name="folderId" value="@Model.CurrentFolder.Id" />
+                        <input type="file" name="file" class="form-control" required />
+                        <button type="submit" class="btn btn-success text-nowrap">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── FOLDERS ── *@
+    @if (Model.SubFolders.Any())
+    {
+        <h6 class="text-muted mt-2">Folder</h6>
+        <div class="table-responsive mb-4">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var folder in Model.SubFolders)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-action="Index" asp-route-folderId="@folder.Id">
+                                    📁 @folder.Name
+                                </a>
+                            </td>
+                            <td>
+                                @* Rename Folder *@
+                                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                                        data-bs-target="#renameFolder-@folder.Id">
+                                    Rename
+                                </button>
+                                @* Move Folder *@
+                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse"
+                                        data-bs-target="#moveFolder-@folder.Id">
+                                    Pindah
+                                </button>
+                                @* Delete Folder *@
+                                <form asp-action="DeleteFolder" method="post" class="d-inline"
+                                      onsubmit="return confirm('Hapus folder @folder.Name? Folder harus kosong.')">
+                                    <input type="hidden" name="id" value="@folder.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @* Rename Folder Form *@
+                        <tr class="collapse" id="renameFolder-@folder.Id">
+                            <td colspan="2">
+                                <form asp-action="RenameFolder" method="post" class="d-flex gap-2 p-2">
+                                    <input type="hidden" name="id" value="@folder.Id" />
+                                    <input type="text" name="newName" class="form-control form-control-sm"
+                                           placeholder="Nama baru..." value="@folder.Name" required />
+                                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">Simpan</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @* Move Folder Form *@
+                        <tr class="collapse" id="moveFolder-@folder.Id">
+                            <td colspan="2">
+                                <form asp-action="MoveFolder" method="post" class="d-flex gap-2 p-2">
+                                    <input type="hidden" name="id" value="@folder.Id" />
+                                    <select name="targetFolderId" class="form-select form-select-sm" required>
+                                        <option value="">-- Pilih folder tujuan --</option>
+                                        @foreach (var f in Model.AllUserFolders.Where(f => f.Id != folder.Id && f.Id != folder.ParentFolderId))
+                                        {
+                                            <option value="@f.Id">@f.Name</option>
+                                        }
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-warning text-nowrap">Pindah</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @* ── FILES ── *@
+    @if (Model.FileItems.Any())
+    {
+        <h6 class="text-muted">File</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama</th>
+                        <th>Ukuran</th>
+                        <th>Tipe</th>
+                        <th>Diubah</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var file in Model.FileItems)
+                    {
+                        <tr>
+                            <td>📄 @file.Name</td>
+                            <td>@FormatSize(file.Size)</td>
+                            <td><small class="text-muted">@file.ContentType</small></td>
+                            <td><small>@file.UpdatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                            <td>
+                                @* Download *@
+                                <a asp-action="DownloadFile" asp-route-id="@file.Id"
+                                   class="btn btn-sm btn-outline-primary">
+                                    Download
+                                </a>
+                                @* Rename File *@
+                                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                                        data-bs-target="#renameFile-@file.Id">
+                                    Rename
+                                </button>
+                                @* Move File *@
+                                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse"
+                                        data-bs-target="#moveFile-@file.Id">
+                                    Pindah
+                                </button>
+                                @* Delete File *@
+                                <form asp-action="DeleteFile" method="post" class="d-inline"
+                                      onsubmit="return confirm('Hapus file @file.Name?')">
+                                    <input type="hidden" name="id" value="@file.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @* Rename File Form *@
+                        <tr class="collapse" id="renameFile-@file.Id">
+                            <td colspan="5">
+                                <form asp-action="RenameFile" method="post" class="d-flex gap-2 p-2">
+                                    <input type="hidden" name="id" value="@file.Id" />
+                                    <input type="text" name="newName" class="form-control form-control-sm"
+                                           placeholder="Nama baru..." value="@file.Name" required />
+                                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">Simpan</button>
+                                </form>
+                            </td>
+                        </tr>
+                        @* Move File Form *@
+                        <tr class="collapse" id="moveFile-@file.Id">
+                            <td colspan="5">
+                                <form asp-action="MoveFile" method="post" class="d-flex gap-2 p-2">
+                                    <input type="hidden" name="id" value="@file.Id" />
+                                    <select name="targetFolderId" class="form-select form-select-sm" required>
+                                        <option value="">-- Pilih folder tujuan --</option>
+                                        @foreach (var f in Model.AllUserFolders.Where(f => f.Id != file.FolderId))
+                                        {
+                                            <option value="@f.Id">@f.Name</option>
+                                        }
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-warning text-nowrap">Pindah</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (!Model.SubFolders.Any() && !Model.FileItems.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <p class="fs-5">Folder ini kosong.</p>
+            <p>Buat folder baru atau upload file menggunakan form di atas.</p>
+        </div>
+    }
+</div>
