@@ -138,6 +138,35 @@ namespace CloudStorage.Migrations
                     b.ToTable("FileItems");
                 });
 
+            modelBuilder.Entity("CloudStorage.Models.FileShare", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FileItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Permission")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SharedWithUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SharedWithUserId");
+
+                    b.HasIndex("FileItemId", "SharedWithUserId")
+                        .IsUnique();
+
+                    b.ToTable("FileShares");
+                });
+
             modelBuilder.Entity("CloudStorage.Models.Folder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -329,6 +358,25 @@ namespace CloudStorage.Migrations
                     b.Navigation("Owner");
                 });
 
+            modelBuilder.Entity("CloudStorage.Models.FileShare", b =>
+                {
+                    b.HasOne("CloudStorage.Models.FileItem", "FileItem")
+                        .WithMany("FileShares")
+                        .HasForeignKey("FileItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CloudStorage.Models.ApplicationUser", "SharedWithUser")
+                        .WithMany("SharedFiles")
+                        .HasForeignKey("SharedWithUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FileItem");
+
+                    b.Navigation("SharedWithUser");
+                });
+
             modelBuilder.Entity("CloudStorage.Models.Folder", b =>
                 {
                     b.HasOne("CloudStorage.Models.ApplicationUser", "Owner")
@@ -403,6 +451,13 @@ namespace CloudStorage.Migrations
                     b.Navigation("FileItems");
 
                     b.Navigation("Folders");
+
+                    b.Navigation("SharedFiles");
+                });
+
+            modelBuilder.Entity("CloudStorage.Models.FileItem", b =>
+                {
+                    b.Navigation("FileShares");
                 });
 
             modelBuilder.Entity("CloudStorage.Models.Folder", b =>
