@@ -1,0 +1,170 @@
+@model CloudStorage.Models.FileManager.SearchViewModel
+@using CloudStorage.Models
+
+@{
+    ViewData["Title"] = "Pencarian File & Folder";
+}
+
+@functions {
+    static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "-";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}
+
+<div class="container-fluid mt-3">
+
+    <h2 class="mb-3">🔍 Pencarian File & Folder</h2>
+
+    @* ── SEARCH & FILTER FORM (GET) ── *@
+    <div class="card mb-4">
+        <div class="card-body">
+            <form asp-action="Search" method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Kata Kunci</label>
+                    <input type="text" name="q" value="@Model.Q" class="form-control" placeholder="Cari nama file atau folder..." />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Tipe Item</label>
+                    <select name="type" class="form-select">
+                        <option value="All" selected="@(Model.Type == "All")">Semua (File & Folder)</option>
+                        <option value="Files" selected="@(Model.Type == "Files")">Hanya File</option>
+                        <option value="Folders" selected="@(Model.Type == "Folders")">Hanya Folder</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Kategori File</label>
+                    <select name="fileType" class="form-select">
+                        <option value="All" selected="@(Model.FileType == "All")">Semua Kategori</option>
+                        <option value="PDF" selected="@(Model.FileType == "PDF")">PDF</option>
+                        <option value="Images" selected="@(Model.FileType == "Images")">Gambar</option>
+                        <option value="Documents" selected="@(Model.FileType == "Documents")">Dokumen (Word/Excel/Text)</option>
+                        <option value="Archives" selected="@(Model.FileType == "Archives")">Arsip (ZIP/RAR)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Urutkan Berdasarkan</label>
+                    <select name="sort" class="form-select">
+                        <option value="name" selected="@(Model.Sort == "name")">Nama</option>
+                        <option value="created" selected="@(Model.Sort == "created")">Tanggal Dibuat</option>
+                        <option value="updated" selected="@(Model.Sort == "updated")">Terakhir Diubah</option>
+                        <option value="size" selected="@(Model.Sort == "size")">Ukuran (File)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Arah Urutan</label>
+                    <select name="direction" class="form-select">
+                        <option value="asc" selected="@(Model.Direction == "asc")">A-Z / Lama ke Baru / Kecil ke Besar</option>
+                        <option value="desc" selected="@(Model.Direction == "desc")">Z-A / Baru ke Lama / Besar ke Kecil</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Waktu</label>
+                    <select name="date" class="form-select">
+                        <option value="All" selected="@(Model.Date == "All")">Semua Waktu</option>
+                        <option value="Today" selected="@(Model.Date == "Today")">Hari Ini</option>
+                        <option value="7d" selected="@(Model.Date == "7d")">7 Hari Terakhir</option>
+                        <option value="30d" selected="@(Model.Date == "30d")">30 Hari Terakhir</option>
+                    </select>
+                </div>
+
+                <div class="col-md-10 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary px-4">Terapkan Filter / Cari</button>
+                    <a asp-action="Search" class="btn btn-outline-secondary">Reset Filter</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* ── SEARCH RESULTS ── *@
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="text-muted">Hasil Pencarian (@Model.TotalCount)</h5>
+    </div>
+
+    @if (Model.Results.Any())
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tipe</th>
+                        <th>Nama</th>
+                        <th>Ukuran</th>
+                        <th>Tipe Content</th>
+                        <th>Tanggal Dibuat / Diubah</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Results)
+                    {
+                        <tr>
+                            <td>
+                                @if (item.ItemType == "Folder")
+                                {
+                                    <span class="badge bg-warning text-dark">Folder</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-info text-dark">File</span>
+                                }
+                            </td>
+                            <td>
+                                @if (item.ItemType == "Folder")
+                                {
+                                    <a asp-action="Index" asp-route-folderId="@item.Id" class="fw-bold text-decoration-none">
+                                        📁 @item.Name
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span>📄 @item.Name</span>
+                                }
+                            </td>
+                            <td>@FormatSize(item.Size)</td>
+                            <td><small class="text-muted">@item.ContentType</small></td>
+                            <td><small>@item.UpdatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                            <td>
+                                @if (item.ItemType == "Folder")
+                                {
+                                    <a asp-action="Index" asp-route-folderId="@item.Id" class="btn btn-sm btn-outline-primary">
+                                        Buka Folder
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a asp-action="DownloadFile" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">
+                                        Download
+                                    </a>
+                                    <form asp-action="DeleteFile" method="post" class="d-inline"
+                                          onsubmit="return confirm('Pindahkan file @item.Name ke Trash?')">
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="text-center text-muted py-5 card">
+            <div class="card-body">
+                <p class="fs-5 mb-1">Tidak ada hasil yang ditemukan.</p>
+                <p class="small text-muted mb-0">Coba sesuaikan kata kunci pencarian atau ubah filter di atas.</p>
+            </div>
+        </div>
+    }
+</div>
