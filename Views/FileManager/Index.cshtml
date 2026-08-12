@@ -186,6 +186,11 @@
                                    class="btn btn-sm btn-outline-primary">
                                     Download
                                 </a>
+                                @* Share File *@
+                                <a asp-action="ManageShares" asp-route-id="@file.Id"
+                                   class="btn btn-sm btn-outline-info">
+                                    Share
+                                </a>
                                 @* Rename File *@
                                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
                                         data-bs-target="#renameFile-@file.Id">
