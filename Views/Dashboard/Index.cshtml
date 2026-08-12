@@ -1,0 +1,46 @@
+@model CloudStorage.Models.Dashboard.DashboardViewModel
+
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white p-3">
+                    <h3 class="mb-0">Basic Dashboard</h3>
+                </div>
+                <div class="card-body p-4">
+                    <h4 class="card-title text-success mb-3">
+                        Autentikasi Berhasil
+                    </h4>
+                    <p class="card-text text-muted mb-4">
+                        Selamat datang! Anda telah berhasil login ke aplikasi CloudStorage.
+                    </p>
+
+                    <div class="list-group list-group-flush border rounded mb-4">
+                        <div class="list-group-item p-3">
+                            <strong class="d-block text-secondary">Nama Tampilan (DisplayName):</strong>
+                            <span class="fs-5 fw-semibold text-dark">@Model.DisplayName</span>
+                        </div>
+                        <div class="list-group-item p-3">
+                            <strong class="d-block text-secondary">Email:</strong>
+                            <span class="fs-5 text-dark">@Model.Email</span>
+                        </div>
+                        <div class="list-group-item p-3">
+                            <strong class="d-block text-secondary">Status Autentikasi:</strong>
+                            <span class="badge bg-success fs-6">Authenticated User</span>
+                        </div>
+                    </div>
+
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        <button type="submit" class="btn btn-outline-danger">
+                            Logout Dari Aplikasi
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
