@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using FileShare = CloudStorage.Models.FileShare;
 
 namespace CloudStorage.Controllers;
 
@@ -463,8 +464,10 @@ public class FileManagerController : Controller
     {
         var userId = _userManager.GetUserId(User)!;
 
+        // User can download if they are the Owner OR if they have FileShare with Download permission
         var fileItem = await _db.FileItems
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
+            .FirstOrDefaultAsync(f => f.Id == id && !f.IsDeleted &&
+                (f.OwnerId == userId || f.FileShares.Any(fs => fs.SharedWithUserId == userId && fs.Permission == FileSharePermission.Download)));
 
         if (fileItem == null)
             return NotFound();
@@ -1020,6 +1023,159 @@ public class FileManagerController : Controller
         }
 
         return false;
+    }
+
+    // ──────────────────────────────────────────────
+    // FILE SHARING ACTIONS
+    // ──────────────────────────────────────────────
+
+    // Manage Shares — Owner view to manage file shares
+    [HttpGet]
+    public async Task<IActionResult> ManageShares(Guid id, string? error, string? success)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var fileItem = await _db.FileItems
+            .Include(f => f.FileShares)
+                .ThenInclude(fs => fs.SharedWithUser)
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
+
+        if (fileItem == null)
+            return NotFound();
+
+        var vm = new ManageSharesViewModel
+        {
+            FileItem = fileItem,
+            Shares = fileItem.FileShares.OrderBy(fs => fs.SharedWithUser.UserName).ToList(),
+            ErrorMessage = error,
+            SuccessMessage = success
+        };
+
+        return View(vm);
+    }
+
+    // Share File — Owner shares file with user (by username or email)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ShareFile(Guid fileId, string targetUser, FileSharePermission permission)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var fileItem = await _db.FileItems
+            .FirstOrDefaultAsync(f => f.Id == fileId && f.OwnerId == userId && !f.IsDeleted);
+
+        if (fileItem == null)
+            return NotFound();
+
+        if (string.IsNullOrWhiteSpace(targetUser))
+            return RedirectToAction(nameof(ManageShares), new { id = fileId, error = "Username / Email target harus diisi." });
+
+        targetUser = targetUser.Trim();
+
+        // Resolve target user by NormalizedUserName or NormalizedEmail
+        var normalizedTarget = targetUser.ToUpperInvariant();
+        var recipient = await _userManager.Users
+            .FirstOrDefaultAsync(u => u.NormalizedUserName == normalizedTarget || u.NormalizedEmail == normalizedTarget);
+
+        if (recipient == null)
+            return RedirectToAction(nameof(ManageShares), new { id = fileId, error = $"User '{targetUser}' tidak ditemukan." });
+
+        if (recipient.Id == userId)
+            return RedirectToAction(nameof(ManageShares), new { id = fileId, error = "Anda adalah pemilik file ini, tidak perlu membagikan ke diri sendiri." });
+
+        // Check for existing share
+        var existingShare = await _db.FileShares
+            .FirstOrDefaultAsync(fs => fs.FileItemId == fileId && fs.SharedWithUserId == recipient.Id);
+
+        if (existingShare != null)
+        {
+            // Update permission if already shared
+            existingShare.Permission = permission;
+            await _db.SaveChangesAsync();
+            return RedirectToAction(nameof(ManageShares), new { id = fileId, success = $"Akses untuk '{recipient.UserName}' berhasil diperbarui menjadi {permission}." });
+        }
+
+        var share = new FileShare
+        {
+            Id = Guid.NewGuid(),
+            FileItemId = fileId,
+            SharedWithUserId = recipient.Id,
+            Permission = permission,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.FileShares.Add(share);
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(ManageShares), new { id = fileId, success = $"File berhasil dibagikan ke '{recipient.UserName}' dengan izin {permission}." });
+    }
+
+    // Update Share Permission — Owner updates permission of existing share
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateSharePermission(Guid shareId, FileSharePermission permission)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var share = await _db.FileShares
+            .Include(fs => fs.FileItem)
+            .Include(fs => fs.SharedWithUser)
+            .FirstOrDefaultAsync(fs => fs.Id == shareId && fs.FileItem.OwnerId == userId && !fs.FileItem.IsDeleted);
+
+        if (share == null)
+            return NotFound();
+
+        share.Permission = permission;
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(ManageShares), new { id = share.FileItemId, success = $"Izin untuk '{share.SharedWithUser.UserName}' berhasil diubah menjadi {permission}." });
+    }
+
+    // Revoke Share — Owner revokes share access
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RevokeShare(Guid shareId)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var share = await _db.FileShares
+            .Include(fs => fs.FileItem)
+            .Include(fs => fs.SharedWithUser)
+            .FirstOrDefaultAsync(fs => fs.Id == shareId && fs.FileItem.OwnerId == userId);
+
+        if (share == null)
+            return NotFound();
+
+        var fileId = share.FileItemId;
+        var userName = share.SharedWithUser.UserName;
+
+        _db.FileShares.Remove(share);
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(ManageShares), new { id = fileId, success = $"Akses untuk '{userName}' telah dicabut." });
+    }
+
+    // Shared With Me — List files shared with current user
+    [HttpGet]
+    public async Task<IActionResult> SharedWithMe(string? error, string? success)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var sharedFiles = await _db.FileShares
+            .Include(fs => fs.FileItem)
+                .ThenInclude(f => f.Owner)
+            .Where(fs => fs.SharedWithUserId == userId && !fs.FileItem.IsDeleted)
+            .OrderByDescending(fs => fs.CreatedAt)
+            .ToListAsync();
+
+        var vm = new SharedWithMeViewModel
+        {
+            SharedFiles = sharedFiles,
+            ErrorMessage = error,
+            SuccessMessage = success
+        };
+
+        return View(vm);
     }
 
     private static List<Guid> GetDescendantFolderIds(List<Folder> allFolders, Guid rootFolderId)
