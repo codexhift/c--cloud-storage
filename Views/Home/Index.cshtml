@@ -1,8 +1,33 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@using Microsoft.AspNetCore.Identity
+@using CloudStorage.Models
+@inject SignInManager<ApplicationUser> SignInManager
+
+@{
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="p-5 mb-4 bg-light rounded-3 text-center">
+    <div class="container-fluid py-4">
+        <h1 class="display-5 fw-bold mb-3">Selamat Datang di CloudStorage</h1>
+        <p class="fs-5 text-muted col-md-8 mx-auto mb-4">
+            Aplikasi Cloud Storage Lokal berbasis ASP.NET Core MVC & PostgreSQL.
+        </p>
+
+        @if (SignInManager.IsSignedIn(User))
+        {
+            <div class="d-flex justify-content-center gap-3">
+                <a asp-controller="Dashboard" asp-action="Index" class="btn btn-primary btn-lg">Buka Dashboard</a>
+                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-lg">Logout</button>
+                </form>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex justify-content-center gap-3">
+                <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-lg">Login</a>
+                <a asp-controller="Account" asp-action="Register" class="btn btn-outline-secondary btn-lg">Register</a>
+            </div>
+        }
+    </div>
 </div>

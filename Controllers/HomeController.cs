@@ -1,8 +1,8 @@
 using System.Diagnostics;
+using CloudStorage.Models;
 using Microsoft.AspNetCore.Mvc;
-using c__cloud_storage.Models;
 
-namespace c__cloud_storage.Controllers;
+namespace CloudStorage.Controllers;
 
 public class HomeController : Controller
 {
