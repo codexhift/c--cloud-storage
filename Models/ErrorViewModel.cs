@@ -1,4 +1,4 @@
-namespace c__cloud_storage.Models;
+namespace CloudStorage.Models;
 
 public class ErrorViewModel
 {
