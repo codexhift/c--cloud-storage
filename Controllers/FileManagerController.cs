@@ -33,7 +33,7 @@ public class FileManagerController : Controller
     }
 
     // ──────────────────────────────────────────────
-    // INDEX — list current folder
+    // INDEX — list current folder (Active files/folders only)
     // ──────────────────────────────────────────────
 
     [HttpGet]
@@ -45,29 +45,29 @@ public class FileManagerController : Controller
         if (folderId == null)
         {
             folder = await _db.Folders
-                .FirstOrDefaultAsync(f => f.OwnerId == userId && f.ParentFolderId == null);
+                .FirstOrDefaultAsync(f => f.OwnerId == userId && f.ParentFolderId == null && !f.IsDeleted);
         }
         else
         {
             folder = await _db.Folders
-                .FirstOrDefaultAsync(f => f.Id == folderId && f.OwnerId == userId);
+                .FirstOrDefaultAsync(f => f.Id == folderId && f.OwnerId == userId && !f.IsDeleted);
         }
 
         if (folder == null)
             return NotFound();
 
         var subFolders = await _db.Folders
-            .Where(f => f.ParentFolderId == folder.Id && f.OwnerId == userId)
+            .Where(f => f.ParentFolderId == folder.Id && f.OwnerId == userId && !f.IsDeleted)
             .OrderBy(f => f.Name)
             .ToListAsync();
 
         var fileItems = await _db.FileItems
-            .Where(f => f.FolderId == folder.Id && f.OwnerId == userId)
+            .Where(f => f.FolderId == folder.Id && f.OwnerId == userId && !f.IsDeleted)
             .OrderBy(f => f.Name)
             .ToListAsync();
 
         var allUserFolders = await _db.Folders
-            .Where(f => f.OwnerId == userId)
+            .Where(f => f.OwnerId == userId && !f.IsDeleted)
             .OrderBy(f => f.Name)
             .ToListAsync();
 
@@ -98,7 +98,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var parent = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == parentFolderId && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == parentFolderId && f.OwnerId == userId && !f.IsDeleted);
 
         if (parent == null)
             return NotFound();
@@ -111,7 +111,8 @@ public class FileManagerController : Controller
         var exists = await _db.Folders.AnyAsync(f =>
             f.OwnerId == userId &&
             f.ParentFolderId == parentFolderId &&
-            f.Name == name);
+            f.Name == name &&
+            !f.IsDeleted);
 
         if (exists)
             return RedirectToAction(nameof(Index), new { folderId = parentFolderId, error = $"Folder '{name}' sudah ada di sini." });
@@ -122,7 +123,8 @@ public class FileManagerController : Controller
             Name = name,
             OwnerId = userId,
             ParentFolderId = parentFolderId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            IsDeleted = false
         };
 
         _db.Folders.Add(folder);
@@ -142,7 +144,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var folder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == folderId && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == folderId && f.OwnerId == userId && !f.IsDeleted);
 
         if (folder == null)
             return NotFound();
@@ -177,7 +179,8 @@ public class FileManagerController : Controller
             ContentType = file.ContentType,
             StorageKey = storageKey,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            IsDeleted = false
         };
 
         try
@@ -196,7 +199,7 @@ public class FileManagerController : Controller
     }
 
     // ──────────────────────────────────────────────
-    // DOWNLOAD FILE
+    // DOWNLOAD FILE (Active files only)
     // ──────────────────────────────────────────────
 
     [HttpGet]
@@ -205,7 +208,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var fileItem = await _db.FileItems
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (fileItem == null)
             return NotFound();
@@ -235,7 +238,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var fileItem = await _db.FileItems
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (fileItem == null)
             return NotFound();
@@ -261,7 +264,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var folder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (folder == null)
             return NotFound();
@@ -278,7 +281,8 @@ public class FileManagerController : Controller
             f.OwnerId == userId &&
             f.ParentFolderId == folder.ParentFolderId &&
             f.Name == newName &&
-            f.Id != id);
+            f.Id != id &&
+            !f.IsDeleted);
 
         if (exists)
             return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = $"Folder '{newName}' sudah ada di sini." });
@@ -300,13 +304,13 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var fileItem = await _db.FileItems
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (fileItem == null)
             return NotFound();
 
         var targetFolder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == targetFolderId && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == targetFolderId && f.OwnerId == userId && !f.IsDeleted);
 
         if (targetFolder == null)
             return NotFound();
@@ -330,7 +334,7 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var folder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (folder == null)
             return NotFound();
@@ -342,13 +346,13 @@ public class FileManagerController : Controller
             return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = "Folder tidak dapat dipindahkan ke dalam dirinya sendiri." });
 
         var targetFolder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == targetFolderId && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == targetFolderId && f.OwnerId == userId && !f.IsDeleted);
 
         if (targetFolder == null)
             return NotFound();
 
         // Cek apakah targetFolder adalah descendant dari folder yang akan dipindahkan
-        var allFolders = await _db.Folders.Where(f => f.OwnerId == userId).ToListAsync();
+        var allFolders = await _db.Folders.Where(f => f.OwnerId == userId && !f.IsDeleted).ToListAsync();
         if (IsDescendant(allFolders, descendantId: targetFolderId, ancestorId: id))
             return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = "Tidak dapat memindahkan folder ke dalam sub-folder miliknya sendiri." });
 
@@ -356,7 +360,8 @@ public class FileManagerController : Controller
             f.OwnerId == userId &&
             f.ParentFolderId == targetFolderId &&
             f.Name == folder.Name &&
-            f.Id != id);
+            f.Id != id &&
+            !f.IsDeleted);
 
         if (existsName)
             return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = $"Folder '{folder.Name}' sudah ada di tujuan." });
@@ -369,7 +374,7 @@ public class FileManagerController : Controller
     }
 
     // ──────────────────────────────────────────────
-    // DELETE FILE
+    // DELETE FILE → SOFT DELETE (MOVE TO TRASH)
     // ──────────────────────────────────────────────
 
     [HttpPost]
@@ -379,36 +384,22 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var fileItem = await _db.FileItems
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (fileItem == null)
             return NotFound();
 
         var folderId = fileItem.FolderId;
 
-        if (!string.IsNullOrEmpty(fileItem.StorageKey))
-        {
-            var deleted = await _storage.DeleteAsync(fileItem.StorageKey);
-            if (!deleted)
-                _logger.LogWarning("Gagal menghapus file fisik storageKey={Key}, tetap melanjutkan hapus metadata.", fileItem.StorageKey);
-        }
+        fileItem.IsDeleted = true;
+        fileItem.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
-        try
-        {
-            _db.FileItems.Remove(fileItem);
-            await _db.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Gagal menghapus metadata FileItem {Id} dari database.", id);
-            return RedirectToAction(nameof(Index), new { folderId, error = "Gagal menghapus file dari database." });
-        }
-
-        return RedirectToAction(nameof(Index), new { folderId, success = $"File '{fileItem.Name}' berhasil dihapus." });
+        return RedirectToAction(nameof(Index), new { folderId, success = $"File '{fileItem.Name}' dipindahkan ke Trash." });
     }
 
     // ──────────────────────────────────────────────
-    // DELETE FOLDER
+    // DELETE FOLDER → SOFT DELETE SUBTREE (MOVE TO TRASH)
     // ──────────────────────────────────────────────
 
     [HttpPost]
@@ -418,27 +409,319 @@ public class FileManagerController : Controller
         var userId = _userManager.GetUserId(User)!;
 
         var folder = await _db.Folders
-            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId);
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && !f.IsDeleted);
 
         if (folder == null)
             return NotFound();
 
         if (folder.ParentFolderId == null)
-            return RedirectToAction(nameof(Index), new { error = "Root folder tidak dapat dihapus." });
-
-        var hasChildren = await _db.Folders.AnyAsync(f => f.ParentFolderId == id && f.OwnerId == userId);
-        if (hasChildren)
-            return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = "Folder masih berisi subfolder. Kosongkan terlebih dahulu." });
-
-        var hasFiles = await _db.FileItems.AnyAsync(f => f.FolderId == id && f.OwnerId == userId);
-        if (hasFiles)
-            return RedirectToAction(nameof(Index), new { folderId = folder.ParentFolderId, error = "Folder masih berisi file. Hapus semua file terlebih dahulu." });
+            return RedirectToAction(nameof(Index), new { error = "Root folder tidak dapat dipindahkan ke Trash." });
 
         var parentId = folder.ParentFolderId;
-        _db.Folders.Remove(folder);
+
+        var allFolders = await _db.Folders.Where(f => f.OwnerId == userId).ToListAsync();
+        var descendantFolderIds = GetDescendantFolderIds(allFolders, id);
+        descendantFolderIds.Add(id);
+
+        var now = DateTime.UtcNow;
+
+        var foldersToSoftDelete = await _db.Folders
+            .Where(f => descendantFolderIds.Contains(f.Id) && !f.IsDeleted)
+            .ToListAsync();
+
+        foreach (var f in foldersToSoftDelete)
+        {
+            f.IsDeleted = true;
+            f.DeletedAt = now;
+        }
+
+        var filesToSoftDelete = await _db.FileItems
+            .Where(f => descendantFolderIds.Contains(f.FolderId) && !f.IsDeleted)
+            .ToListAsync();
+
+        foreach (var file in filesToSoftDelete)
+        {
+            file.IsDeleted = true;
+            file.DeletedAt = now;
+        }
+
         await _db.SaveChangesAsync();
 
-        return RedirectToAction(nameof(Index), new { folderId = parentId, success = $"Folder '{folder.Name}' berhasil dihapus." });
+        return RedirectToAction(nameof(Index), new { folderId = parentId, success = $"Folder '{folder.Name}' dan seluruh isinya dipindahkan ke Trash." });
+    }
+
+    // ──────────────────────────────────────────────
+    // TRASH PAGE — List trashed items
+    // ──────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<IActionResult> Trash(string? error, string? success)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var allUserFolders = await _db.Folders.Where(f => f.OwnerId == userId).ToListAsync();
+        var deletedFolderIds = allUserFolders.Where(f => f.IsDeleted).Select(f => f.Id).ToHashSet();
+
+        // Top-level trashed folders (IsDeleted == true, but parent is NOT deleted)
+        var trashedFolders = allUserFolders
+            .Where(f => f.IsDeleted && (f.ParentFolderId == null || !deletedFolderIds.Contains(f.ParentFolderId.Value)))
+            .OrderByDescending(f => f.DeletedAt)
+            .ToList();
+
+        // Top-level trashed files (IsDeleted == true, and parent folder is NOT deleted)
+        var trashedFiles = await _db.FileItems
+            .Where(f => f.OwnerId == userId && f.IsDeleted && !deletedFolderIds.Contains(f.FolderId))
+            .OrderByDescending(f => f.DeletedAt)
+            .ToListAsync();
+
+        var vm = new TrashViewModel
+        {
+            TrashedFolders = trashedFolders,
+            TrashedFiles = trashedFiles,
+            ErrorMessage = error,
+            SuccessMessage = success
+        };
+
+        return View(vm);
+    }
+
+    // ──────────────────────────────────────────────
+    // RESTORE FILE
+    // ──────────────────────────────────────────────
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RestoreFile(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var fileItem = await _db.FileItems
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && f.IsDeleted);
+
+        if (fileItem == null)
+            return NotFound();
+
+        // Check if parent folder is deleted
+        var parentFolder = await _db.Folders
+            .FirstOrDefaultAsync(f => f.Id == fileItem.FolderId && f.OwnerId == userId);
+
+        if (parentFolder == null || parentFolder.IsDeleted)
+            return RedirectToAction(nameof(Trash), new { error = $"Parent folder dari file '{fileItem.Name}' masih di Trash. Restore parent folder terlebih dahulu." });
+
+        // Conflict check: active file with same name in same parent folder
+        var conflict = await _db.FileItems.AnyAsync(f =>
+            f.OwnerId == userId &&
+            f.FolderId == fileItem.FolderId &&
+            f.Name == fileItem.Name &&
+            !f.IsDeleted);
+
+        if (conflict)
+            return RedirectToAction(nameof(Trash), new { error = $"Gagal restore: File dengan nama '{fileItem.Name}' sudah ada di folder tujuan." });
+
+        fileItem.IsDeleted = false;
+        fileItem.DeletedAt = null;
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Trash), new { success = $"File '{fileItem.Name}' berhasil dipulihkan." });
+    }
+
+    // ──────────────────────────────────────────────
+    // RESTORE FOLDER (Restores folder + subtree)
+    // ──────────────────────────────────────────────
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RestoreFolder(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var folder = await _db.Folders
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && f.IsDeleted);
+
+        if (folder == null)
+            return NotFound();
+
+        if (folder.ParentFolderId == null)
+            return RedirectToAction(nameof(Trash), new { error = "Root folder tidak valid di Trash." });
+
+        // Check if parent folder is deleted
+        var parentFolder = await _db.Folders
+            .FirstOrDefaultAsync(f => f.Id == folder.ParentFolderId && f.OwnerId == userId);
+
+        if (parentFolder == null || parentFolder.IsDeleted)
+            return RedirectToAction(nameof(Trash), new { error = $"Parent folder dari '{folder.Name}' masih di Trash. Restore parent folder terlebih dahulu." });
+
+        // Conflict check: active folder with same name in same parent folder
+        var conflict = await _db.Folders.AnyAsync(f =>
+            f.OwnerId == userId &&
+            f.ParentFolderId == folder.ParentFolderId &&
+            f.Name == folder.Name &&
+            !f.IsDeleted);
+
+        if (conflict)
+            return RedirectToAction(nameof(Trash), new { error = $"Gagal restore: Folder dengan nama '{folder.Name}' sudah ada di folder tujuan." });
+
+        var allFolders = await _db.Folders.Where(f => f.OwnerId == userId).ToListAsync();
+        var descendantFolderIds = GetDescendantFolderIds(allFolders, id);
+        descendantFolderIds.Add(id);
+
+        var foldersToRestore = await _db.Folders
+            .Where(f => descendantFolderIds.Contains(f.Id) && f.IsDeleted)
+            .ToListAsync();
+
+        foreach (var f in foldersToRestore)
+        {
+            f.IsDeleted = false;
+            f.DeletedAt = null;
+        }
+
+        var filesToRestore = await _db.FileItems
+            .Where(f => descendantFolderIds.Contains(f.FolderId) && f.IsDeleted)
+            .ToListAsync();
+
+        foreach (var file in filesToRestore)
+        {
+            file.IsDeleted = false;
+            file.DeletedAt = null;
+        }
+
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Trash), new { success = $"Folder '{folder.Name}' dan isinya berhasil dipulihkan." });
+    }
+
+    // ──────────────────────────────────────────────
+    // PERMANENT DELETE FILE
+    // ──────────────────────────────────────────────
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PermanentDeleteFile(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var fileItem = await _db.FileItems
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && f.IsDeleted);
+
+        if (fileItem == null)
+            return NotFound();
+
+        if (!string.IsNullOrEmpty(fileItem.StorageKey))
+        {
+            try
+            {
+                await _storage.DeleteAsync(fileItem.StorageKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Gagal menghapus file fisik storageKey={Key}, tetap melanjutkan hapus metadata.", fileItem.StorageKey);
+            }
+        }
+
+        _db.FileItems.Remove(fileItem);
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Trash), new { success = $"File '{fileItem.Name}' berhasil dihapus secara permanen." });
+    }
+
+    // ──────────────────────────────────────────────
+    // PERMANENT DELETE FOLDER (Deletes folder + subtree + physical files)
+    // ──────────────────────────────────────────────
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PermanentDeleteFolder(Guid id)
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var folder = await _db.Folders
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerId == userId && f.IsDeleted);
+
+        if (folder == null)
+            return NotFound();
+
+        if (folder.ParentFolderId == null)
+            return RedirectToAction(nameof(Trash), new { error = "Root folder tidak dapat dihapus secara permanen." });
+
+        var allFolders = await _db.Folders.Where(f => f.OwnerId == userId).ToListAsync();
+        var descendantFolderIds = GetDescendantFolderIds(allFolders, id);
+        descendantFolderIds.Add(id);
+
+        var filesToDelete = await _db.FileItems
+            .Where(f => descendantFolderIds.Contains(f.FolderId))
+            .ToListAsync();
+
+        foreach (var file in filesToDelete)
+        {
+            if (!string.IsNullOrEmpty(file.StorageKey))
+            {
+                try
+                {
+                    await _storage.DeleteAsync(file.StorageKey);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Gagal menghapus file fisik storageKey={Key} saat permanent delete folder.", file.StorageKey);
+                }
+            }
+        }
+
+        _db.FileItems.RemoveRange(filesToDelete);
+
+        var foldersToDelete = await _db.Folders
+            .Where(f => descendantFolderIds.Contains(f.Id))
+            .ToListAsync();
+
+        // Delete leaf folders first to avoid FK constraint issues during EF SaveChanges
+        var orderedFoldersToDelete = OrderFoldersBottomUp(foldersToDelete);
+        _db.Folders.RemoveRange(orderedFoldersToDelete);
+
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Trash), new { success = $"Folder '{folder.Name}' dan seluruh isinya berhasil dihapus secara permanen." });
+    }
+
+    // ──────────────────────────────────────────────
+    // EMPTY TRASH
+    // ──────────────────────────────────────────────
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EmptyTrash()
+    {
+        var userId = _userManager.GetUserId(User)!;
+
+        var deletedFiles = await _db.FileItems
+            .Where(f => f.OwnerId == userId && f.IsDeleted)
+            .ToListAsync();
+
+        foreach (var file in deletedFiles)
+        {
+            if (!string.IsNullOrEmpty(file.StorageKey))
+            {
+                try
+                {
+                    await _storage.DeleteAsync(file.StorageKey);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Gagal menghapus file fisik storageKey={Key} saat Empty Trash.", file.StorageKey);
+                }
+            }
+        }
+
+        _db.FileItems.RemoveRange(deletedFiles);
+
+        var deletedFolders = await _db.Folders
+            .Where(f => f.OwnerId == userId && f.IsDeleted && f.ParentFolderId != null)
+            .ToListAsync();
+
+        var orderedFoldersToDelete = OrderFoldersBottomUp(deletedFolders);
+        _db.Folders.RemoveRange(orderedFoldersToDelete);
+
+        await _db.SaveChangesAsync();
+
+        return RedirectToAction(nameof(Trash), new { success = "Trash berhasil dikosongkan." });
     }
 
     // ──────────────────────────────────────────────
@@ -483,11 +766,42 @@ public class FileManagerController : Controller
         return false;
     }
 
-    private static string FormatFileSize(long bytes)
+    private static List<Guid> GetDescendantFolderIds(List<Folder> allFolders, Guid rootFolderId)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+        var result = new List<Guid>();
+        var children = allFolders.Where(f => f.ParentFolderId == rootFolderId).ToList();
+
+        foreach (var child in children)
+        {
+            result.Add(child.Id);
+            result.AddRange(GetDescendantFolderIds(allFolders, child.Id));
+        }
+
+        return result;
+    }
+
+    private static List<Folder> OrderFoldersBottomUp(List<Folder> folders)
+    {
+        var folderIds = folders.Select(f => f.Id).ToHashSet();
+        var result = new List<Folder>();
+        var remaining = new List<Folder>(folders);
+
+        while (remaining.Any())
+        {
+            var leaves = remaining.Where(f => !remaining.Any(child => child.ParentFolderId == f.Id)).ToList();
+            if (!leaves.Any())
+            {
+                result.AddRange(remaining);
+                break;
+            }
+
+            result.AddRange(leaves);
+            foreach (var leaf in leaves)
+            {
+                remaining.Remove(leaf);
+            }
+        }
+
+        return result;
     }
 }
