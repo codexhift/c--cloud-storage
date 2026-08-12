@@ -13,6 +13,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<FileItem> FileItems => Set<FileItem>();
+    public DbSet<CloudStorage.Models.FileShare> FileShares => Set<CloudStorage.Models.FileShare>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -54,5 +55,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(f => f.FileItems)
             .HasForeignKey(f => f.FolderId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // FileShare relationships
+        builder.Entity<CloudStorage.Models.FileShare>()
+            .HasOne(fs => fs.FileItem)
+            .WithMany(f => f.FileShares)
+            .HasForeignKey(fs => fs.FileItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CloudStorage.Models.FileShare>()
+            .HasOne(fs => fs.SharedWithUser)
+            .WithMany(u => u.SharedFiles)
+            .HasForeignKey(fs => fs.SharedWithUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unique constraint: A file can only be shared once with the same user
+        builder.Entity<CloudStorage.Models.FileShare>()
+            .HasIndex(fs => new { fs.FileItemId, fs.SharedWithUserId })
+            .IsUnique();
     }
 }
