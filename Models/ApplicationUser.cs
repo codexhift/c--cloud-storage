@@ -8,4 +8,5 @@ public class ApplicationUser : IdentityUser
 
     public ICollection<Folder> Folders { get; set; } = new List<Folder>();
     public ICollection<FileItem> FileItems { get; set; } = new List<FileItem>();
+    public ICollection<FileShare> SharedFiles { get; set; } = new List<FileShare>();
 }

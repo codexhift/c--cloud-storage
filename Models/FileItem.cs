@@ -24,4 +24,6 @@ public class FileItem
 
     public bool IsDeleted { get; set; } = false;
     public DateTime? DeletedAt { get; set; }
+
+    public ICollection<FileShare> FileShares { get; set; } = new List<FileShare>();
 }
