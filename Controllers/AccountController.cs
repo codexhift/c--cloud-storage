@@ -1,3 +1,4 @@
+using CloudStorage.Data;
 using CloudStorage.Models;
 using CloudStorage.Models.Account;
 using Microsoft.AspNetCore.Identity;
@@ -9,13 +10,16 @@ public class AccountController : Controller
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly ApplicationDbContext _dbContext;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager)
+        SignInManager<ApplicationUser> signInManager,
+        ApplicationDbContext dbContext)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -45,6 +49,27 @@ public class AccountController : Controller
 
             if (result.Succeeded)
             {
+                try
+                {
+                    var rootFolder = new Folder
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Root",
+                        OwnerId = user.Id,
+                        ParentFolderId = null,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _dbContext.Folders.Add(rootFolder);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch
+                {
+                    await _userManager.DeleteAsync(user);
+                    ModelState.AddModelError(string.Empty, "Gagal membuat Root Folder untuk user.");
+                    return View(model);
+                }
+
                 await _signInManager.SignInAsync(user, isPersistent: false);
                 return RedirectToAction("Index", "Dashboard");
             }
