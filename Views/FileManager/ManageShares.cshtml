@@ -1,0 +1,129 @@
+@model CloudStorage.Models.FileManager.ManageSharesViewModel
+@using CloudStorage.Models
+
+@{
+    ViewData["Title"] = "Kelola Akses File — " + Model.FileItem.Name;
+}
+
+<div class="container-fluid mt-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>🔗 Kelola Akses File</h2>
+        <a asp-action="Index" asp-route-folderId="@Model.FileItem.FolderId" class="btn btn-outline-secondary">← Kembali ke File Manager</a>
+    </div>
+
+    @* ── ALERTS ── *@
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @Model.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @* ── FILE INFO CARD ── *@
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">📄 @Model.FileItem.Name</h5>
+            <p class="card-text text-muted mb-0">Ukuran: @(Model.FileItem.Size / 1024.0 < 1024 ? $"{Model.FileItem.Size / 1024.0:F1} KB" : $"{Model.FileItem.Size / (1024.0 * 1024):F1} MB") | Tipe: @Model.FileItem.ContentType</p>
+        </div>
+    </div>
+
+    @* ── SHARE FORM ── *@
+    <div class="card mb-4">
+        <div class="card-header"><strong>Bagikan File Ini</strong></div>
+        <div class="card-body">
+            <form asp-action="ShareFile" method="post" class="row g-3">
+                <input type="hidden" name="fileId" value="@Model.FileItem.Id" />
+                
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Username / Email Penerima</label>
+                    <input type="text" name="targetUser" class="form-control" placeholder="Masukkan username atau email user..." required />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Hak Akses (Permission)</label>
+                    <select name="permission" class="form-select" required>
+                        <option value="View">View Only (Lihat Metadata)</option>
+                        <option value="Download">Download (Lihat & Unduh File)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Bagikan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* ── SHARED USERS TABLE ── *@
+    <h5 class="text-muted mb-2">User yang Memiliki Akses (@Model.Shares.Count)</h5>
+    @if (Model.Shares.Any())
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Izin Saat Ini</th>
+                        <th>Tanggal Dibagikan</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var share in Model.Shares)
+                    {
+                        <tr>
+                            <td>👤 <strong>@share.SharedWithUser.UserName</strong></td>
+                            <td>@share.SharedWithUser.Email</td>
+                            <td>
+                                @if (share.Permission == FileSharePermission.Download)
+                                {
+                                    <span class="badge bg-success">Download</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">View Only</span>
+                                }
+                            </td>
+                            <td><small class="text-muted">@share.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                            <td>
+                                @* Form Ubah Izin *@
+                                <form asp-action="UpdateSharePermission" method="post" class="d-inline-flex gap-1 align-items-center">
+                                    <input type="hidden" name="shareId" value="@share.Id" />
+                                    <select name="permission" class="form-select form-select-sm" onchange="this.form.submit()">
+                                        <option value="View" selected="@(share.Permission == FileSharePermission.View)">View Only</option>
+                                        <option value="Download" selected="@(share.Permission == FileSharePermission.Download)">Download</option>
+                                    </select>
+                                </form>
+
+                                @* Form Revoke Access *@
+                                <form asp-action="RevokeShare" method="post" class="d-inline"
+                                      onsubmit="return confirm('Cabut akses file dari @share.SharedWithUser.UserName?')">
+                                    <input type="hidden" name="shareId" value="@share.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Cabut Akses</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="text-center text-muted py-4 card">
+            <div class="card-body">
+                <p class="mb-0">File ini belum dibagikan ke siapapun.</p>
+            </div>
+        </div>
+    }
+</div>

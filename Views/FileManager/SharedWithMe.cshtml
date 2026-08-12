@@ -1,0 +1,100 @@
+@model CloudStorage.Models.FileManager.SharedWithMeViewModel
+@using CloudStorage.Models
+
+@{
+    ViewData["Title"] = "Dibagikan Kepada Saya";
+}
+
+@functions {
+    static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "-";
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}
+
+<div class="container-fluid mt-3">
+
+    <h2 class="mb-3">🤝 Dibagikan Kepada Saya</h2>
+
+    @* ── ALERTS ── *@
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @Model.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (Model.SharedFiles.Any())
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama File</th>
+                        <th>Pemilik (Owner)</th>
+                        <th>Ukuran</th>
+                        <th>Hak Akses Saya</th>
+                        <th>Tanggal Dibagikan</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var share in Model.SharedFiles)
+                    {
+                        <tr>
+                            <td>📄 <strong>@share.FileItem.Name</strong></td>
+                            <td>👤 @(share.FileItem.Owner?.UserName ?? share.FileItem.OwnerId)</td>
+                            <td>@FormatSize(share.FileItem.Size)</td>
+                            <td>
+                                @if (share.Permission == FileSharePermission.Download)
+                                {
+                                    <span class="badge bg-success">Download & View</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">View Only</span>
+                                }
+                            </td>
+                            <td><small class="text-muted">@share.CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small></td>
+                            <td>
+                                @if (share.Permission == FileSharePermission.Download)
+                                {
+                                    <a asp-action="DownloadFile" asp-route-id="@share.FileItem.Id" class="btn btn-sm btn-outline-primary">
+                                        Download
+                                    </a>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" disabled title="Hanya memiliki hak akses View">
+                                        View Only
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="text-center text-muted py-5 card">
+            <div class="card-body">
+                <p class="fs-5 mb-1">Belum ada file yang dibagikan kepada Anda.</p>
+                <p class="small text-muted mb-0">File yang dibagikan oleh user lain akan muncul di halaman ini.</p>
+            </div>
+        </div>
+    }
+</div>
