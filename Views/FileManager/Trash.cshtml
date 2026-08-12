@@ -1,0 +1,129 @@
+@model CloudStorage.Models.FileManager.TrashViewModel
+@using CloudStorage.Models
+
+@{
+    ViewData["Title"] = "Trash";
+}
+
+@functions {
+    static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}
+
+<div class="container-fluid mt-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>🗑️ Trash</h2>
+        @if (Model.TrashedFolders.Any() || Model.TrashedFiles.Any())
+        {
+            <form asp-action="EmptyTrash" method="post" onsubmit="return confirm('Kosongkan semua isi Trash secara permanen?')">
+                <button type="submit" class="btn btn-danger">Empty Trash</button>
+            </form>
+        }
+    </div>
+
+    @* ── ALERTS ── *@
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @Model.ErrorMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @Model.SuccessMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @* ── TRASHED FOLDERS ── *@
+    @if (Model.TrashedFolders.Any())
+    {
+        <h6 class="text-muted mt-3">Folder di Trash</h6>
+        <div class="table-responsive mb-4">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama Folder</th>
+                        <th>Waktu Dihapus</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var folder in Model.TrashedFolders)
+                    {
+                        <tr>
+                            <td>📁 @folder.Name</td>
+                            <td><small class="text-muted">@(folder.DeletedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "-")</small></td>
+                            <td>
+                                <form asp-action="RestoreFolder" method="post" class="d-inline">
+                                    <input type="hidden" name="id" value="@folder.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-success">Restore</button>
+                                </form>
+                                <form asp-action="PermanentDeleteFolder" method="post" class="d-inline"
+                                      onsubmit="return confirm('Hapus folder @folder.Name dan seluruh isinya secara permanen?')">
+                                    <input type="hidden" name="id" value="@folder.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete Permanently</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @* ── TRASHED FILES ── *@
+    @if (Model.TrashedFiles.Any())
+    {
+        <h6 class="text-muted mt-3">File di Trash</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama File</th>
+                        <th>Ukuran</th>
+                        <th>Waktu Dihapus</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var file in Model.TrashedFiles)
+                    {
+                        <tr>
+                            <td>📄 @file.Name</td>
+                            <td>@FormatSize(file.Size)</td>
+                            <td><small class="text-muted">@(file.DeletedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "-")</small></td>
+                            <td>
+                                <form asp-action="RestoreFile" method="post" class="d-inline">
+                                    <input type="hidden" name="id" value="@file.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-success">Restore</button>
+                                </form>
+                                <form asp-action="PermanentDeleteFile" method="post" class="d-inline"
+                                      onsubmit="return confirm('Hapus file @file.Name secara permanen?')">
+                                    <input type="hidden" name="id" value="@file.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete Permanently</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (!Model.TrashedFolders.Any() && !Model.TrashedFiles.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <p class="fs-5">Trash kosong.</p>
+            <p>Tidak ada item yang telah dihapus.</p>
+        </div>
+    }
+</div>
